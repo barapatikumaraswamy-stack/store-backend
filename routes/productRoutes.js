@@ -2,6 +2,7 @@ const express = require("express");
 const Product = require("../models/Product");
 const Supplier = require("../models/Supplier");
 const ProductLog = require("../models/ProductLog");
+const Inventory = require("../models/Inventory");
 const auth = require("../middleware/auth");
 
 const router = express.Router();
@@ -34,7 +35,7 @@ router.get("/:id", auth(), async (req, res, next) => {
 
 router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
   try {
-    const { name, sku, salePrice, purchasePrice, soldBy } = req.body;
+    const { name, sku, salePrice, purchasePrice, soldBy, openingQuantity = 0, minLevel = 0, maxLevel = 0 } = req.body;
 
     let supplier = null;
     if (soldBy) {
@@ -57,7 +58,18 @@ router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
       await supplier.save();
     }
 
-    // log creation
+    await Inventory.findOneAndUpdate(
+      { product: prod._id, location: "MAIN" },
+      { $setOnInsert: {
+      quantity: openingQuantity,
+      minLevel,
+      maxLevel
+      }
+    },
+      { upsert: true, new: true }
+    );
+
+
     await ProductLog.create({
       product: prod._id,
       user: req.user.id,
