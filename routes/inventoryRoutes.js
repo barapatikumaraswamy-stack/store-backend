@@ -25,7 +25,6 @@ router.get("/", auth(), async (req, res, next) => {
 router.get("/logs/:productId", auth(), async (req, res, next) => {
   try {
     const logs = await InventoryLog.find({ product: req.params.productId })
-      .populate("user", "name email")
       .sort({ createdAt: -1 });
     res.json(logs);
   } catch (err) {
@@ -93,7 +92,8 @@ router.post(
         maxLevelBefore: before.maxLevel,
         maxLevelAfter: inv.maxLevel,
         note,
-        user: req.user ? req.user.id : null
+         user: req.user ? req.user.name : null,
+         email: req.user ? req.user.email : null
       });
 
       res.status(200).json(inv);
