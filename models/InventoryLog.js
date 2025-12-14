@@ -11,8 +11,7 @@ const inventoryLogSchema = new mongoose.Schema(
     maxLevelBefore: { type: Number },
     maxLevelAfter: { type: Number },
     note: { type: String },
-    user: { type: String },
-    email: { type: String }
+     user: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
   },
   { timestamps: true }
 );
