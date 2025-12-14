@@ -12,6 +12,12 @@ const supplierRoutes = require("./routes/supplierRoutes");
 const app = express();
 connectDB();
 
+require("./models/User");
+require("./models/Product");
+require("./models/Inventory");
+require("./models/InventoryLog");
+require("./models/Supplier");
+
 app.use(cors());
 app.use(express.json());
 
