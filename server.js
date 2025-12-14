@@ -8,6 +8,7 @@ const productRoutes = require("./routes/productRoutes");
 const inventoryRoutes = require("./routes/inventoryRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const supplierRoutes = require("./routes/supplierRoutes");
+const productLogRoutes = require("./routes/productLogRoutes");
 
 const app = express();
 connectDB();
@@ -17,6 +18,7 @@ require("./models/Product");
 require("./models/Inventory");
 require("./models/InventoryLog");
 require("./models/Supplier");
+require("./models/ProductLog");
 
 app.use(cors());
 app.use(express.json());
@@ -26,6 +28,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/suppliers", supplierRoutes);
+app.use("/api/product-logs", productLogRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);
