@@ -13,7 +13,7 @@ const transactionSchema = new mongoose.Schema(
       required: true,
     },
     location: { type: String, default: "MAIN" },
-    quantity: { type: Number, required: true }, // positive for in, negative for out
+    quantity: { type: Number, required: true },
     note: { type: String },
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },

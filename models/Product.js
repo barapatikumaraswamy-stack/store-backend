@@ -10,6 +10,12 @@ const productSchema = new mongoose.Schema(
     salePrice: { type: Number, required: true },
     taxRate: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
+      soldBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Supplier",
+      required: false,
+      default: null
+    }
   },
   { timestamps: true }
 );

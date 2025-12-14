@@ -1,5 +1,6 @@
 const express = require("express");
 const Product = require("../models/Product");
+const Supplier = require("../models/Supplier");
 const auth = require("../middleware/auth");
 
 const router = express.Router();
@@ -25,9 +26,30 @@ router.get("/:id", auth(), async (req, res, next) => {
   }
 });
 
+
 router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
   try {
-    const prod = await Product.create(req.body);
+    const { name, salePrice, soldBy } = req.body;
+
+    let supplier = null;
+    if (soldBy) {
+      supplier = await Supplier.findById(soldBy);
+      if (!supplier) {
+        return res.status(404).json({ message: "Supplier not found" });
+      }
+    }
+
+    const prod = await Product.create({
+      name,
+      salePrice,
+      soldBy: soldBy || null,
+    });
+
+    if (supplier) {
+      supplier.productsSupplied.push(prod._id);
+      await supplier.save();
+    }
+
     res.status(201).json(prod);
   } catch (err) {
     next(err);
