@@ -6,11 +6,14 @@ const auth = require("../middleware/auth");
 
 const router = express.Router();
 
+
 router.get("/", auth(), async (req, res, next) => {
   try {
     const { q } = req.query;
     const filter = q ? { name: new RegExp(q, "i") } : {};
-    const products = await Product.find(filter).sort({ createdAt: -1 });
+    const products = await Product.find(filter)
+      .populate("soldBy", "name email phone address")
+      .sort({ createdAt: -1 });
     res.json(products);
   } catch (err) {
     next(err);
@@ -19,7 +22,8 @@ router.get("/", auth(), async (req, res, next) => {
 
 router.get("/:id", auth(), async (req, res, next) => {
   try {
-    const prod = await Product.findById(req.params.id);
+    const prod = await Product.findById(req.params.id)
+      .populate("soldBy", "name email phone address");
     if (!prod) return res.status(404).json({ message: "Not found" });
     res.json(prod);
   } catch (err) {
@@ -27,9 +31,10 @@ router.get("/:id", auth(), async (req, res, next) => {
   }
 });
 
+
 router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
   try {
-    const { name, salePrice, soldBy } = req.body;
+    const { name, sku, salePrice, purchasePrice, soldBy } = req.body;
 
     let supplier = null;
     if (soldBy) {
@@ -41,8 +46,10 @@ router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
 
     const prod = await Product.create({
       name,
+      sku,
       salePrice,
-      soldBy: soldBy || null,
+      purchasePrice,
+      soldBy: soldBy || null
     });
 
     if (supplier) {
@@ -50,7 +57,7 @@ router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
       await supplier.save();
     }
 
-    // optional: log creation
+    // log creation
     await ProductLog.create({
       product: prod._id,
       user: req.user.id,
@@ -63,12 +70,15 @@ router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
       note: "Product created"
     });
 
-    res.status(201).json(prod);
+    const populated = await Product.findById(prod._id)
+      .populate("soldBy", "name email phone address");
+    res.status(201).json(populated);
   } catch (err) {
     next(err);
   }
 });
 
+// PUT /api/products/:id - update product + log
 router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
   try {
     const prod = await Product.findById(req.params.id);
@@ -80,6 +90,7 @@ router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
       soldBy: prod.soldBy
     };
 
+    // handle supplier change
     if (req.body.soldBy) {
       const supplier = await Supplier.findById(req.body.soldBy);
       if (!supplier) {
@@ -90,8 +101,11 @@ router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
       prod.soldBy = null;
     }
 
+    // other fields
     if (req.body.name !== undefined) prod.name = req.body.name;
     if (typeof req.body.salePrice === "number") prod.salePrice = req.body.salePrice;
+    if (typeof req.body.purchasePrice === "number") prod.purchasePrice = req.body.purchasePrice;
+    if (req.body.sku !== undefined) prod.sku = req.body.sku;
 
     await prod.save();
 
@@ -109,12 +123,15 @@ router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
       note: req.body.note || "Product updated"
     });
 
-    res.json(prod);
+    const populated = await Product.findById(prod._id)
+      .populate("soldBy", "name email phone address");
+    res.json(populated);
   } catch (err) {
     next(err);
   }
 });
 
+// DELETE /api/products/:id - delete product + log
 router.delete("/:id", auth(["admin"]), async (req, res, next) => {
   try {
     const prod = await Product.findByIdAndDelete(req.params.id);

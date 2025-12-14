@@ -4,14 +4,30 @@ const auth = require("../middleware/auth");
 
 const router = express.Router();
 
+
 router.get("/", auth(), async (req, res, next) => {
   try {
-    const suppliers = await Supplier.find().sort({ name: 1 });
+    const suppliers = await Supplier.find()
+      .populate("productsSupplied", "name sku salePrice purchasePrice")
+      .sort({ name: 1 });
     res.json(suppliers);
   } catch (err) {
     next(err);
   }
 });
+
+
+router.get("/:id", auth(), async (req, res, next) => {
+  try {
+    const sup = await Supplier.findById(req.params.id)
+      .populate("productsSupplied", "name sku salePrice purchasePrice");
+    if (!sup) return res.status(404).json({ message: "Not found" });
+    res.json(sup);
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
   try {
@@ -22,17 +38,19 @@ router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
   }
 });
 
+
 router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
   try {
     const sup = await Supplier.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
+      new: true
+    }).populate("productsSupplied", "name sku salePrice purchasePrice");
     if (!sup) return res.status(404).json({ message: "Not found" });
     res.json(sup);
   } catch (err) {
     next(err);
   }
 });
+
 
 router.delete("/:id", auth(["admin"]), async (req, res, next) => {
   try {
