@@ -31,6 +31,7 @@ router.get("/:id", auth(), async (req, res, next) => {
   }
 });
 
+// POST /api/products - create product + link supplier + inventory
 router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
   try {
     const {
@@ -66,17 +67,16 @@ router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
       taxRate,
       isActive,
       soldBy: soldBy || null,
-      // if you also store these on Product
       minLevel,
       maxLevel
     });
 
+    // keep supplier.productsSupplied in sync
     if (supplier) {
       supplier.productsSupplied.push(prod._id);
       await supplier.save();
     }
 
-    // create or update inventory in sync
     await Inventory.findOneAndUpdate(
       { product: prod._id, location: "MAIN" },
       {
@@ -109,7 +109,7 @@ router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
   }
 });
 
-// PUT /api/products/:id - update product + log + sync inventory
+// PUT /api/products/:id - update product + log + sync inventory + suppliers
 router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
   try {
     const prod = await Product.findById(req.params.id);
@@ -122,6 +122,9 @@ router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
       soldBy: prod.soldBy
     };
 
+    const oldSupplierId = prod.soldBy ? prod.soldBy.toString() : null;
+    let newSupplierId = oldSupplierId;
+
     // handle supplier change
     if (req.body.soldBy) {
       const supplier = await Supplier.findById(req.body.soldBy);
@@ -129,8 +132,10 @@ router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
         return res.status(404).json({ message: "Supplier not found" });
       }
       prod.soldBy = req.body.soldBy;
+      newSupplierId = req.body.soldBy.toString();
     } else if (req.body.soldBy === null) {
       prod.soldBy = null;
+      newSupplierId = null;
     }
 
     // product-owned fields
@@ -171,6 +176,22 @@ router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
       );
     }
 
+    // keep suppliers' productsSupplied in sync on supplier change
+    if (oldSupplierId !== newSupplierId) {
+      if (oldSupplierId) {
+        await Supplier.findByIdAndUpdate(
+          oldSupplierId,
+          { $pull: { productsSupplied: prod._id } }
+        );
+      }
+      if (newSupplierId) {
+        await Supplier.findByIdAndUpdate(
+          newSupplierId,
+          { $addToSet: { productsSupplied: prod._id } }
+        );
+      }
+    }
+
     const after = {
       name: prod.name,
       salePrice: prod.salePrice,
@@ -194,10 +215,18 @@ router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
   }
 });
 
+// DELETE /api/products/:id - delete product + log + unlink from supplier
 router.delete("/:id", auth(["admin"]), async (req, res, next) => {
   try {
     const prod = await Product.findByIdAndDelete(req.params.id);
     if (!prod) return res.status(404).json({ message: "Not found" });
+
+    // remove product from supplier.productsSupplied
+    if (prod.soldBy) {
+      await Supplier.findByIdAndUpdate(prod.soldBy, {
+        $pull: { productsSupplied: prod._id }
+      });
+    }
 
     await ProductLog.create({
       product: prod._id,
