@@ -1,9 +1,9 @@
+// routes/suppliers.js
 const express = require("express");
 const Supplier = require("../models/Supplier");
 const auth = require("../middleware/auth");
 
 const router = express.Router();
-
 
 router.get("/", auth(), async (req, res, next) => {
   try {
@@ -16,7 +16,6 @@ router.get("/", auth(), async (req, res, next) => {
   }
 });
 
-
 router.get("/:id", auth(), async (req, res, next) => {
   try {
     const sup = await Supplier.findById(req.params.id)
@@ -28,29 +27,41 @@ router.get("/:id", auth(), async (req, res, next) => {
   }
 });
 
-
 router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
   try {
-    const sup = await Supplier.create(req.body);
+    const { name, email, phone, address } = req.body;
+
+    // check existing by name (case-insensitive if you want)
+    const existing = await Supplier.findOne({ name });
+    if (existing) {
+      return res.status(400).json({ message: "Supplier already exists" });
+    }
+
+    const sup = await Supplier.create({ name, email, phone, address });
     res.status(201).json(sup);
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({ message: "Supplier already exists" });
+    }
     next(err);
   }
 });
-
 
 router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
   try {
     const sup = await Supplier.findByIdAndUpdate(req.params.id, req.body, {
-      new: true
+      new: true,
+      runValidators: true,
     }).populate("productsSupplied", "name sku salePrice purchasePrice");
     if (!sup) return res.status(404).json({ message: "Not found" });
     res.json(sup);
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({ message: "Supplier name already in use" });
+    }
     next(err);
   }
 });
-
 
 router.delete("/:id", auth(["admin"]), async (req, res, next) => {
   try {
