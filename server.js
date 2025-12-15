@@ -9,6 +9,8 @@ const inventoryRoutes = require("./routes/inventoryRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const supplierRoutes = require("./routes/supplierRoutes");
 const productLogRoutes = require("./routes/productLogRoutes");
+const analyticsRouter = require("./routes/analytics");
+
 
 const app = express();
 connectDB();
@@ -24,6 +26,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
+app.use("/api/analytics", analyticsRouter);
 app.use("/api/products", productRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/transactions", transactionRoutes);
