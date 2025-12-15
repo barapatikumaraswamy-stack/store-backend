@@ -65,7 +65,10 @@ router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
       salePrice,
       taxRate,
       isActive,
-      soldBy: soldBy || null
+      soldBy: soldBy || null,
+      // if you also store these on Product
+      minLevel,
+      maxLevel
     });
 
     if (supplier) {
@@ -73,6 +76,7 @@ router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
       await supplier.save();
     }
 
+    // create or update inventory in sync
     await Inventory.findOneAndUpdate(
       { product: prod._id, location: "MAIN" },
       {
@@ -129,7 +133,7 @@ router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
       prod.soldBy = null;
     }
 
-    // other product fields
+    // product-owned fields
     if (req.body.name !== undefined) prod.name = req.body.name;
     if (typeof req.body.salePrice === "number") prod.salePrice = req.body.salePrice;
     if (typeof req.body.purchasePrice === "number") {
@@ -141,10 +145,14 @@ router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
     if (typeof req.body.taxRate === "number") prod.taxRate = req.body.taxRate;
     if (typeof req.body.isActive === "boolean") prod.isActive = req.body.isActive;
 
+    // inventory-owned fields that may be edited from product form
+    const { openingQuantity, minLevel, maxLevel } = req.body;
+    if (typeof minLevel === "number") prod.minLevel = minLevel;
+    if (typeof maxLevel === "number") prod.maxLevel = maxLevel;
+
     await prod.save();
 
-    // sync inventory (MAIN) when inventory-related fields provided
-    const { openingQuantity, minLevel, maxLevel } = req.body;
+    // sync inventory whenever inventory-related fields are present
     if (
       openingQuantity !== undefined ||
       minLevel !== undefined ||
@@ -186,7 +194,6 @@ router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
   }
 });
 
-// DELETE /api/products/:id - delete product + log
 router.delete("/:id", auth(["admin"]), async (req, res, next) => {
   try {
     const prod = await Product.findByIdAndDelete(req.params.id);

@@ -46,8 +46,6 @@ router.post(
   auth(["admin", "stockManager"]),
   async (req, res, next) => {
     try {
-      console.log("REQ.USER IN ADJUST ===>", req.user);
-
       const {
         productId,
         location = "MAIN",
@@ -55,7 +53,15 @@ router.post(
         minLevel,
         maxLevel,
         note,
-        updateProduct // optional flag from client
+        // product fields that might be changed from inventory screen
+        name,
+        sku,
+        barcode,
+        category,
+        purchasePrice,
+        salePrice,
+        taxRate,
+        isActive
       } = req.body;
 
       const product = await Product.findById(productId);
@@ -71,6 +77,7 @@ router.post(
         maxLevel: inv.maxLevel
       };
 
+      // inventory-owned fields
       if (typeof quantityDelta === "number") {
         inv.quantity += quantityDelta;
       }
@@ -83,20 +90,25 @@ router.post(
 
       await inv.save();
 
-      // optional sync from inventory -> product
-      if (updateProduct) {
-        if (typeof minLevel === "number") {
-          product.minLevel = minLevel;
-        }
-        if (typeof maxLevel === "number") {
-          product.maxLevel = maxLevel;
-        }
-        // example rule: deactivate product when out of stock
-        if (inv.quantity === 0) {
-          product.isActive = false;
-        }
-        await product.save();
+      // mirror inventory-related fields back to product if you keep them there
+      if (typeof minLevel === "number") {
+        product.minLevel = minLevel;
       }
+      if (typeof maxLevel === "number") {
+        product.maxLevel = maxLevel;
+      }
+
+      // product-owned fields that can be edited from inventory screen
+      if (name !== undefined) product.name = name;
+      if (sku !== undefined) product.sku = sku;
+      if (barcode !== undefined) product.barcode = barcode;
+      if (category !== undefined) product.category = category;
+      if (typeof purchasePrice === "number") product.purchasePrice = purchasePrice;
+      if (typeof salePrice === "number") product.salePrice = salePrice;
+      if (typeof taxRate === "number") product.taxRate = taxRate;
+      if (typeof isActive === "boolean") product.isActive = isActive;
+
+      await product.save();
 
       await InventoryLog.create({
         product: productId,
@@ -111,7 +123,10 @@ router.post(
         user: req.user ? req.user.id : null
       });
 
-      res.status(200).json(inv);
+      res.status(200).json({
+        inventory: inv,
+        product
+      });
     } catch (err) {
       next(err);
     }
