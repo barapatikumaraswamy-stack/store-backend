@@ -46,9 +46,15 @@ router.get("/revenue-by-period", auth(), async (req, res, next) => {
             },
             type: "$type" // "purchase" or "sale"
           },
+          // For purchases: quantity is positive, multiply by purchasePrice
+          // For sales: quantity is positive, multiply by salePrice
           revenue: {
             $sum: {
-              $multiply: ["$quantity", "$productData.salePrice"]
+              $cond: [
+                { $eq: ["$type", "sale"] },
+                { $multiply: [{ $abs: "$quantity" }, "$productData.salePrice"] },
+                { $multiply: [{ $abs: "$quantity" }, "$productData.purchasePrice"] }
+              ]
             }
           },
           count: { $sum: 1 }
