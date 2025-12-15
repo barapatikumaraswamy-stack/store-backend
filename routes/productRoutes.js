@@ -7,7 +7,6 @@ const auth = require("../middleware/auth");
 
 const router = express.Router();
 
-
 router.get("/", auth(), async (req, res, next) => {
   try {
     const { q } = req.query;
@@ -32,10 +31,22 @@ router.get("/:id", auth(), async (req, res, next) => {
   }
 });
 
-
 router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
   try {
-    const { name, sku, salePrice, purchasePrice, soldBy, openingQuantity = 0, minLevel = 0, maxLevel = 0 } = req.body;
+    const {
+      name,
+      sku,
+      salePrice,
+      purchasePrice,
+      soldBy,
+      openingQuantity = 0,
+      minLevel = 0,
+      maxLevel = 0,
+      barcode,
+      category,
+      taxRate = 0,
+      isActive = true
+    } = req.body;
 
     let supplier = null;
     if (soldBy) {
@@ -48,8 +59,12 @@ router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
     const prod = await Product.create({
       name,
       sku,
-      salePrice,
+      barcode,
+      category,
       purchasePrice,
+      salePrice,
+      taxRate,
+      isActive,
       soldBy: soldBy || null
     });
 
@@ -60,15 +75,15 @@ router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
 
     await Inventory.findOneAndUpdate(
       { product: prod._id, location: "MAIN" },
-      { $setOnInsert: {
-      quantity: openingQuantity,
-      minLevel,
-      maxLevel
-      }
-    },
+      {
+        $setOnInsert: {
+          quantity: openingQuantity,
+          minLevel,
+          maxLevel
+        }
+      },
       { upsert: true, new: true }
     );
-
 
     await ProductLog.create({
       product: prod._id,
@@ -90,7 +105,7 @@ router.post("/", auth(["admin", "stockManager"]), async (req, res, next) => {
   }
 });
 
-// PUT /api/products/:id - update product + log
+// PUT /api/products/:id - update product + log + sync inventory
 router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
   try {
     const prod = await Product.findById(req.params.id);
@@ -99,6 +114,7 @@ router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
     const before = {
       name: prod.name,
       salePrice: prod.salePrice,
+      purchasePrice: prod.purchasePrice,
       soldBy: prod.soldBy
     };
 
@@ -113,17 +129,44 @@ router.put("/:id", auth(["admin", "stockManager"]), async (req, res, next) => {
       prod.soldBy = null;
     }
 
-    // other fields
+    // other product fields
     if (req.body.name !== undefined) prod.name = req.body.name;
     if (typeof req.body.salePrice === "number") prod.salePrice = req.body.salePrice;
-    if (typeof req.body.purchasePrice === "number") prod.purchasePrice = req.body.purchasePrice;
+    if (typeof req.body.purchasePrice === "number") {
+      prod.purchasePrice = req.body.purchasePrice;
+    }
     if (req.body.sku !== undefined) prod.sku = req.body.sku;
+    if (req.body.barcode !== undefined) prod.barcode = req.body.barcode;
+    if (req.body.category !== undefined) prod.category = req.body.category;
+    if (typeof req.body.taxRate === "number") prod.taxRate = req.body.taxRate;
+    if (typeof req.body.isActive === "boolean") prod.isActive = req.body.isActive;
 
     await prod.save();
+
+    // sync inventory (MAIN) when inventory-related fields provided
+    const { openingQuantity, minLevel, maxLevel } = req.body;
+    if (
+      openingQuantity !== undefined ||
+      minLevel !== undefined ||
+      maxLevel !== undefined
+    ) {
+      await Inventory.findOneAndUpdate(
+        { product: prod._id, location: "MAIN" },
+        {
+          $set: {
+            ...(openingQuantity !== undefined && { quantity: openingQuantity }),
+            ...(minLevel !== undefined && { minLevel }),
+            ...(maxLevel !== undefined && { maxLevel })
+          }
+        },
+        { upsert: true, new: true }
+      );
+    }
 
     const after = {
       name: prod.name,
       salePrice: prod.salePrice,
+      purchasePrice: prod.purchasePrice,
       soldBy: prod.soldBy
     };
 

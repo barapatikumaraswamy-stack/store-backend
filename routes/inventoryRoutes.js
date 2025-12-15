@@ -33,7 +33,6 @@ router.get("/logs/:productId", auth(), async (req, res, next) => {
   }
 });
 
-
 async function ensureInventory(productId, location = "MAIN") {
   let inv = await Inventory.findOne({ product: productId, location });
   if (!inv) {
@@ -55,7 +54,8 @@ router.post(
         quantityDelta,
         minLevel,
         maxLevel,
-        note
+        note,
+        updateProduct // optional flag from client
       } = req.body;
 
       const product = await Product.findById(productId);
@@ -82,6 +82,21 @@ router.post(
       }
 
       await inv.save();
+
+      // optional sync from inventory -> product
+      if (updateProduct) {
+        if (typeof minLevel === "number") {
+          product.minLevel = minLevel;
+        }
+        if (typeof maxLevel === "number") {
+          product.maxLevel = maxLevel;
+        }
+        // example rule: deactivate product when out of stock
+        if (inv.quantity === 0) {
+          product.isActive = false;
+        }
+        await product.save();
+      }
 
       await InventoryLog.create({
         product: productId,
